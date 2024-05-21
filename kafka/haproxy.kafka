@@ -1,0 +1,4 @@
+CONSUMER
+topic: haproxy
+partitions: 0
+from: 0

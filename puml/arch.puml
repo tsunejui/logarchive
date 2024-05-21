@@ -1,0 +1,43 @@
+@startuml arch
+left to right direction
+
+agent "Client" as client
+
+package "Reverse Proxy Service" {
+    agent "HA Proxy" as haproxy
+    agent "Rsyslog" as rsyslog
+    file "Access Logs" as logs
+    agent "Fluentd" as fluentd
+}
+
+agent "Backend" as backend
+queue "Kafka" as kafka
+
+package "ELK" {
+    agent "Logstash" as logstash
+    database "Elasticsearch" as es
+    agent "Kibana" as kibana
+}
+
+package "Monitoring" {
+    agent "Prometheus" as prometheus
+    agent "Grafana" as grafana
+}
+
+client --> haproxy : access
+haproxy --> backend : proxy
+haproxy -> rsyslog : send
+rsyslog -> logs : store
+logs <-- fluentd : catch
+fluentd --> kafka : send
+
+' ELK
+kafka <- logstash : listen
+logstash -> es : store
+es <- kibana : view
+
+' metrics
+prometheus --> fluentd : scrap
+grafana -> prometheus : query
+
+@enduml

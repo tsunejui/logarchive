@@ -1,0 +1,19 @@
+# docker buildx build --platform linux/amd64 -f composes/images/Dockerfile.rsyslog . -t logarchive-rsyslog
+FROM alpine:3.19.1
+
+RUN apk update && apk upgrade -U -a
+RUN apk add supervisor rsyslog
+
+# supervisor
+COPY composes/images/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# rsyslog
+COPY composes/images/rsyslog/rsyslog.conf /etc/rsyslog.conf
+COPY composes/images/rsyslog/log_rotation.sh /scripts/log_rotation.sh
+RUN chmod +x /scripts/log_rotation.sh
+
+# housekeeping
+COPY composes/images/corn/housekeeping.sh /etc/periodic/daily/haproxy-log-archive
+RUN chmod +x /etc/periodic/daily/haproxy-log-archive
+
+ENTRYPOINT ["supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

@@ -1,0 +1,55 @@
+# docker compose -f composes/docker-compose.yaml up -d
+services:
+
+  httpbin:
+    container_name: http-bin
+    image: kennethreitz/httpbin:latest
+    restart: always
+  
+  rsyslog:
+    container_name: rsyslog
+    image: logarchive-rsyslog
+    restart: always
+    volumes:
+      - ./data/rsyslog:/var/log
+
+  # usage:
+  #    while true; do curl -o /dev/null -s http://localhost:8091 && sleep 3; date; done
+  haproxy:
+    container_name: haproxy
+    image: logarchive-haproxy
+    restart: always
+    ports:
+      - 8091:8080
+    depends_on:
+      - rsyslog
+      - httpbin
+    
+  fluentd:
+    container_name: fluentd
+    image: logarchive-fluentd
+    restart: always
+    volumes:
+      - ./data/rsyslog:/var/log/haproxy
+      - ./data/fluentd:/var/log/fluentd
+      - ./images/fluentd:/etc/fluent
+
+  kafka:
+    image: docker.io/bitnami/kafka:latest
+    ports:
+      - "9095:9095"
+    volumes:
+      - ./data/kafka:/bitnami/kafka
+    environment:
+      # KRaft settings
+      - KAFKA_ENABLE_KRAFT=yes
+      - KAFKA_CFG_NODE_ID=0
+      - KAFKA_CFG_PROCESS_ROLES=controller,broker
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=0@kafka:9093
+      # Listeners ref: https://stackoverflow.com/questions/75680387/access-bitnami-kafka-docker-container-from-everywhere
+      - KAFKA_CFG_LISTENERS=PLAINTEXT://:9092,CONTROLLER://:9093,EXTERNAL://:9095
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,EXTERNAL://localhost:9095
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=PLAINTEXT
+      - ALLOW_PLAINTEXT_LISTENER=yes

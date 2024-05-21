@@ -1,0 +1,29 @@
+# docker buildx build --platform linux/amd64 -f composes/images/Dockerfile.fluentd . -t logarchive-fluentd
+FROM fluent/fluentd:v1.17-1
+
+# old version path is /etc/fluent/fluent.conf
+COPY composes/images/fluentd/fluent.conf /etc/fluent/fluent.conf
+# ref: https://docs.fluentd.org/configuration/config-file
+# COPY composes/images/fluentd/fluent.conf /fluentd/etc/fluent.conf
+
+USER root
+
+# upgrade linux packages
+RUN apk update && apk upgrade -U -a
+
+# install linux packages
+ENV buildDeps="make gcc g++ libc-dev ruby-dev libffi-dev patch"
+RUN apk add --no-cache $buildDeps \
+    && echo 'gem: --no-document' >> /etc/gemrc
+
+# install ruby packages
+RUN gem install bundler -v 2.3.26 \
+    && gem install fluent-plugin-kafka \
+    && gem install fluent-plugin-prometheus
+RUN gem sources --clear-all
+
+# delete unused packages
+RUN apk del $buildDeps
+RUN rm -rf /tmp/* /var/tmp/* /usr/lib/ruby/gdockems/*/cache/*.gem
+
+ENTRYPOINT ["/usr/bin/fluentd", "-o", "/var/log/fluentd/fluentd.log", "--log-rotate-age", "daily"]
